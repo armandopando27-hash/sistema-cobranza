@@ -5,12 +5,67 @@ const app = express();
 
 app.use(express.json());
 
-// CONEXIÓN A MONGODB ATLAS
+// CONEXIÓN A MONGODB ATLAS CON VERIFICACIÓN MEJORADA
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://Armandopando:Nino.1412@cluster0.pmy61xe.mongodb.net/sistema_cobranza?retryWrites=true&w=majority';
 
-mongoose.connect(MONGODB_URI)
-  .then(() => console.log('✅ Conectado a MongoDB Atlas - Sistema de Cobranza'))
-  .catch(err => console.error('❌ Error conexión MongoDB:', err));
+// VERIFICACIÓN DE CONEXIÓN MEJORADA
+console.log('🔧 Iniciando conexión a MongoDB...');
+console.log('📡 URI de conexión:', MONGODB_URI ? '✅ Presente' : '❌ Faltante');
+
+mongoose.connect(MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 30000,
+  socketTimeoutMS: 45000,
+  maxPoolSize: 10,
+})
+.then(() => {
+  console.log('✅ Conectado a MongoDB Atlas - Sistema de Cobranza');
+  console.log('📊 Base de datos: sistema_cobranza');
+  console.log('🏠 Host:', mongoose.connection.host);
+  console.log('🔌 Puerto:', mongoose.connection.port);
+  console.log('🗃️ DB Name:', mongoose.connection.name);
+})
+.catch(err => {
+  console.error('❌ Error conexión MongoDB:');
+  console.error('   - Mensaje:', err.message);
+  console.error('   - Código:', err.code);
+  console.error('   - Stack:', err.stack);
+  console.log('🔧 Solución: Verifica:');
+  console.log('   1. Tu contraseña en MONGODB_URI');
+  console.log('   2. Network Access en MongoDB Atlas (0.0.0.0/0)');
+  console.log('   3. El nombre del cluster es correcto');
+  process.exit(1);
+});
+
+// EVENTOS DE CONEXIÓN PARA DEBUGGING
+mongoose.connection.on('connecting', () => {
+  console.log('🔄 Conectando a MongoDB...');
+});
+
+mongoose.connection.on('connected', () => {
+  console.log('✅ Conexión a MongoDB establecida');
+});
+
+mongoose.connection.on('open', () => {
+  console.log('🚀 Conexión a MongoDB abierta y lista');
+});
+
+mongoose.connection.on('disconnecting', () => {
+  console.log('⚠️  Desconectando de MongoDB...');
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.error('❌ Desconectado de MongoDB');
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('💥 Error de MongoDB:', err.message);
+});
+
+mongoose.connection.on('reconnected', () => {
+  console.log('🔁 Reconectado a MongoDB');
+});
 
 // MODELO CLIENTE
 const clienteSchema = new mongoose.Schema({
@@ -28,6 +83,106 @@ const clienteSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const Cliente = mongoose.model('Cliente', clienteSchema);
+
+// FUNCIÓN PARA VERIFICAR ESTADO DE LA BASE DE DATOS
+async function verificarEstadoDB() {
+  try {
+    const estado = mongoose.connection.readyState;
+    const estados = {
+      0: '❌ Desconectado',
+      1: '✅ Conectado',
+      2: '🔄 Conectando',
+      3: '⚠️  Desconectando'
+    };
+    
+    console.log('📊 Estado de MongoDB:', estados[estado]);
+    
+    if (estado === 1) {
+      // Verificar que podemos hacer operaciones
+      const count = await Cliente.countDocuments();
+      console.log(`📈 Clientes en base de datos: ${count}`);
+      
+      // Verificar colecciones disponibles
+      const collections = await mongoose.connection.db.listCollections().toArray();
+      console.log('🗂️ Colecciones disponibles:');
+      collections.forEach(col => console.log(`   - ${col.name}`));
+    }
+    
+    return estado === 1;
+  } catch (error) {
+    console.error('❌ Error verificando estado DB:', error.message);
+    return false;
+  }
+}
+
+// RUTA PARA VERIFICAR CONEXIÓN
+app.get('/status', async (req, res) => {
+  try {
+    const dbConectada = await verificarEstadoDB();
+    const estado = mongoose.connection.readyState;
+    
+    res.json({
+      success: true,
+      database: {
+        connected: dbConectada,
+        readyState: estado,
+        states: {
+          0: 'disconnected',
+          1: 'connected', 
+          2: 'connecting',
+          3: 'disconnecting'
+        },
+        host: mongoose.connection.host,
+        name: mongoose.connection.name,
+        collections: dbConectada ? await mongoose.connection.db.listCollections().toArray().then(cols => cols.map(c => c.name)) : []
+      },
+      system: {
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        version: process.version
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// RUTA PARA VERIFICAR OPERACIONES CRUD
+app.get('/test-db', async (req, res) => {
+  try {
+    // Verificar lectura
+    const clientesCount = await Cliente.countDocuments();
+    
+    // Verificar escritura (crear cliente temporal)
+    const testCliente = new Cliente({
+      nombre: 'Cliente Test DB',
+      celular: '51999999999',
+      email: 'test@db.com',
+      deuda_actual: 0
+    });
+    
+    const clienteGuardado = await testCliente.save();
+    await Cliente.findByIdAndDelete(clienteGuardado._id); // Limpiar
+    
+    res.json({
+      success: true,
+      message: '✅ Operaciones CRUD funcionando correctamente',
+      tests: {
+        lectura: `✅ ${clientesCount} clientes encontrados`,
+        escritura: '✅ Cliente creado y eliminado exitosamente',
+        conexion: '✅ MongoDB responsive'
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: '❌ Error en operaciones CRUD: ' + error.message
+    });
+  }
+});
 
 // FUNCIÓN PARA CALCULAR VENCIMIENTOS
 function calcularVencimientos(fechaContrato) {
@@ -80,6 +235,12 @@ cron.schedule('0 9 * * *', async () => {
   console.log('🔔 Ejecutando verificación de vencimientos...');
   
   try {
+    const dbOk = await verificarEstadoDB();
+    if (!dbOk) {
+      console.error('❌ Base de datos no disponible para notificaciones');
+      return;
+    }
+    
     const clientes = await Cliente.find({ estado: 'activo' });
     let notificacionesEnviadas = 0;
     
@@ -121,6 +282,14 @@ cron.schedule('0 9 * * *', async () => {
 // Crear cliente nuevo
 app.post('/clientes', async (req, res) => {
   try {
+    const dbOk = await verificarEstadoDB();
+    if (!dbOk) {
+      return res.status(500).json({
+        success: false,
+        error: 'Base de datos no disponible'
+      });
+    }
+    
     const cliente = new Cliente(req.body);
     await cliente.save();
     res.json({ 
@@ -139,6 +308,14 @@ app.post('/clientes', async (req, res) => {
 // Obtener todos los clientes
 app.get('/clientes', async (req, res) => {
   try {
+    const dbOk = await verificarEstadoDB();
+    if (!dbOk) {
+      return res.status(500).json({
+        success: false,
+        error: 'Base de datos no disponible'
+      });
+    }
+    
     const clientes = await Cliente.find().sort({ nombre: 1 });
     res.json({
       success: true,
@@ -156,6 +333,14 @@ app.get('/clientes', async (req, res) => {
 // Verificar vencimientos de un cliente
 app.get('/clientes/:id/vencimiento', async (req, res) => {
   try {
+    const dbOk = await verificarEstadoDB();
+    if (!dbOk) {
+      return res.status(500).json({
+        success: false,
+        error: 'Base de datos no disponible'
+      });
+    }
+    
     const cliente = await Cliente.findById(req.params.id);
     if (!cliente) {
       return res.status(404).json({ 
@@ -185,6 +370,14 @@ app.get('/clientes/:id/vencimiento', async (req, res) => {
 // Probar notificación manualmente
 app.post('/test-notificacion/:id', async (req, res) => {
   try {
+    const dbOk = await verificarEstadoDB();
+    if (!dbOk) {
+      return res.status(500).json({
+        success: false,
+        error: 'Base de datos no disponible'
+      });
+    }
+    
     const cliente = await Cliente.findById(req.params.id);
     if (!cliente) {
       return res.status(404).json({ 
@@ -218,8 +411,10 @@ app.get('/', (req, res) => {
   res.send(`
     <h1>🚀 Sistema de Notificaciones - Cobranza</h1>
     <p><strong>Estado:</strong> ✅ Funcionando</p>
-    <p>Endpoints disponibles:</p>
+    <p><strong>Endpoints disponibles:</strong></p>
     <ul>
+      <li><strong>GET /status</strong> - Verificar estado de conexión</li>
+      <li><strong>GET /test-db</strong> - Probar operaciones CRUD</li>
       <li><strong>GET /clientes</strong> - Ver todos los clientes</li>
       <li><strong>POST /clientes</strong> - Crear nuevo cliente</li>
       <li><strong>GET /clientes/:id/vencimiento</strong> - Ver vencimiento</li>
@@ -234,4 +429,9 @@ app.listen(PORT, () => {
   console.log(`🎯 Servidor corriendo en puerto ${PORT}`);
   console.log(`🌐 Sistema de Cobranza inicializado`);
   console.log(`🔔 Notificaciones programadas: ACTIVAS`);
+  
+  // Verificar conexión al iniciar
+  setTimeout(() => {
+    verificarEstadoDB();
+  }, 2000);
 });
