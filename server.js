@@ -6,7 +6,7 @@ const app = express();
 app.use(express.json());
 
 // CONEXIÓN A MONGODB ATLAS
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://Armandopando:TU_PASSWORD@cluster0.pmy61xe.mongodb.net/sistema_cobranza?retryWrites=true&w=majority';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://Armandopando:Nino.1412@cluster0.pmy61xe.mongodb.net/sistema_cobranza?retryWrites=true&w=majority';
 
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('✅ Conectado a MongoDB Atlas - Sistema de Cobranza'))
