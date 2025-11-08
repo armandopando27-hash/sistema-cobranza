@@ -1,4 +1,71 @@
-// RUTA DEL DASHBOARD INTERACTIVO
+app.put('/clientes/:id', async (req, res) => {
+  try {
+    const dbOk = await verificarEstadoDB();
+    if (!dbOk) {
+      return res.status(500).json({
+        success: false,
+        error: 'Base de datos no disponible'
+      });
+    }
+    
+    const cliente = await Cliente.findByIdAndUpdate(
+      req.params.id, 
+      req.body, 
+      { new: true, runValidators: true }
+    );
+    
+    if (!cliente) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Cliente no encontrado' 
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Cliente actualizado exitosamente', 
+      cliente 
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Eliminar cliente
+app.delete('/clientes/:id', async (req, res) => {
+  try {
+    const dbOk = await verificarEstadoDB();
+    if (!dbOk) {
+      return res.status(500).json({
+        success: false,
+        error: 'Base de datos no disponible'
+      });
+    }
+    
+    const cliente = await Cliente.findByIdAndDelete(req.params.id);
+    
+    if (!cliente) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Cliente no encontrado' 
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Cliente eliminado exitosamente' 
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 app.get('/dashboard', (req, res) => {
   res.send(`
 <!DOCTYPE html>
