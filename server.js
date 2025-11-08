@@ -1,11 +1,27 @@
-// DEBUG: Ver qué hay realmente en MONGODB_URI
-console.log('🔍 DEBUG MONGODB_URI:');
-console.log('Longitud:', process.env.MONGODB_URI ? process.env.MONGODB_URI.length : 'undefined');
-console.log('Primeros 20 caracteres:', process.env.MONGODB_URI ? process.env.MONGODB_URI.substring(0, 20) : 'undefined');
-console.log('¿Comienza con mongodb?:', process.env.MONGODB_URI ? process.env.MONGODB_URI.startsWith('mongodb') : 'undefined');
-
-// Si no existe MONGODB_URI, usa la cadena por defecto PERO BIEN ESCRITA
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://Armandopando:Nino.1412@cluster0.pmy61xe.mongodb.net/sistema_cobranza?retryWrites=true&w=majority';
 
-console.log('🔍 URI que se usará:');
-console.log('Primeros 30 chars:', MONGODB_URI.substring(0, 30));
+console.log('🔧 Iniciando conexión a MongoDB...');
+
+mongoose.connect(MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 10000, // 10 segundos
+})
+.then(() => {
+  console.log('✅ Conectado a MongoDB Atlas - Sistema de Cobranza');
+  console.log('🏠 Host:', mongoose.connection.host);
+  console.log('📊 Base de datos:', mongoose.connection.name);
+})
+.catch(err => {
+  console.error('❌ Error conexión MongoDB:', err.message);
+  console.log('🔧 Continuando sin MongoDB...');
+});
+
+// MANTENER LA APLICACIÓN CORRIENDO AUN CON ERRORES
+process.on('uncaughtException', (error) => {
+  console.error('💥 Error no capturado:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 Promise rechazada:', reason);
+});
