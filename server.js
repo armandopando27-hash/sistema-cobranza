@@ -11,7 +11,7 @@ console.log('🔍 DEBUG MONGODB_URI CONTENIDO:');
 console.log('Valor completo:', process.env.MONGODB_URI);
 console.log('Primeros 30 chars:', process.env.MONGODB_URI ? process.env.MONGODB_URI.substring(0, 30) : 'undefined');
 
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://Armandopando:Nino.1412@cluster0.pmy6lxe.mongodb.net/sistema_cobranza?retryWrites=true&w=majority&appName=Cluster0";
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://Armandopando:Mongo123@cluster0.pmy6lxe.mongodb.net/sistema_cobranza?retryWrites=true&w=majority&appName=Cluster0";
 
 console.log('🔧 Iniciando conexión a MongoDB...');
 console.log('📡 URI de conexión:', MONGODB_URI ? '✅ Presente' : '❌ Faltante');
